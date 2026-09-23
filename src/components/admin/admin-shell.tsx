@@ -31,6 +31,7 @@ import {
 } from "@/app/actions";
 import type { ActionState, Word, WordType } from "@/lib/types";
 import { WORD_TYPES } from "@/lib/types";
+import { AdminNavigation } from "@/components/admin/admin-navigation";
 
 type AdminShellProps = {
   words: Word[];
@@ -587,6 +588,7 @@ export function AdminShell({
         </div>
       </header>
 
+      <AdminNavigation current="words" />
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         {!supabaseConfigured ? (
           <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">

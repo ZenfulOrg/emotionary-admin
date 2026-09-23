@@ -1,3 +1,4 @@
+import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import type { Word, WordFormInput } from "@/lib/types";
@@ -28,7 +29,7 @@ export function getSupabaseConfigStatus() {
   };
 }
 
-function getSupabaseAdmin() {
+export function getSupabaseAdmin() {
   if (adminClient) {
     return adminClient;
   }

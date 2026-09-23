@@ -11,6 +11,9 @@ Supabase `public.words` table.
 - Save drafts, publish, and unpublish words
 - Search and filter by status, type, level, and free/paid access
 - Mobile-style preview of the selected word
+- Book waitlist with signup timestamps, email/date/status filters, copy-all, and CSV export
+
+The book waitlist is prepared locally; its database migration and public-site integration are not activated. See [book waitlist setup and verification](docs/book-waitlist.md).
 
 ## Environment
 
