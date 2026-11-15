@@ -95,9 +95,12 @@ export async function upsertWord(input: WordFormInput) {
     definition: input.definition,
     wisdom: input.wisdom,
     is_free: input.is_free,
+    free_order: input.is_free ? input.free_order : null,
     published: input.published,
     published_at: publishedAt,
     audio_url: input.audio_url,
+    native_spelling: input.native_spelling,
+    voice_locale: input.voice_locale,
     updated_at: now,
   };
 
@@ -115,6 +118,25 @@ export async function upsertWord(input: WordFormInput) {
         .single();
 
   const { data, error } = await query;
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as Word;
+}
+
+/** Saves how a word's recording should sound (never shown in the app). */
+export async function setWordVoice(
+  id: string,
+  voice: { voice_locale: string | null; native_spelling: string | null },
+) {
+  const { data, error } = await getSupabaseAdmin()
+    .from("words")
+    .update(voice)
+    .eq("id", id)
+    .select("*")
+    .single();
 
   if (error) {
     throw new Error(error.message);
