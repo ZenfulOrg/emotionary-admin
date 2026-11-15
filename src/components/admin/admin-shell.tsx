@@ -18,6 +18,7 @@ import {
   EyeOff,
   FilePenLine,
   LogOut,
+  Mic,
   Plus,
   RefreshCcw,
   Search,
@@ -26,6 +27,8 @@ import {
 
 import {
   logoutAction,
+  recordMissingPronunciationsAction,
+  regeneratePronunciationAction,
   saveWordAction,
   togglePublishedAction,
 } from "@/app/actions";
@@ -45,6 +48,44 @@ const initialActionState: ActionState = {
   ok: false,
   message: "",
 };
+
+/** Voices a word can be read with. "Auto" picks from the word's language. */
+const VOICE_CHOICES: Array<{ value: string; label: string }> = [
+  { value: "", label: "Auto (from language)" },
+  { value: "en-US", label: "English (US)" },
+  { value: "en-GB", label: "English (UK)" },
+  { value: "ar-XA", label: "Arabic" },
+  { value: "da-DK", label: "Danish" },
+  { value: "de-DE", label: "German" },
+  { value: "el-GR", label: "Greek" },
+  { value: "es-ES", label: "Spanish (Spain)" },
+  { value: "es-US", label: "Spanish (Latin America)" },
+  { value: "fi-FI", label: "Finnish" },
+  { value: "fil-PH", label: "Filipino" },
+  { value: "fr-FR", label: "French" },
+  { value: "he-IL", label: "Hebrew" },
+  { value: "hi-IN", label: "Hindi" },
+  { value: "id-ID", label: "Indonesian" },
+  { value: "is-IS", label: "Icelandic" },
+  { value: "it-IT", label: "Italian" },
+  { value: "ja-JP", label: "Japanese" },
+  { value: "ko-KR", label: "Korean" },
+  { value: "lt-LT", label: "Lithuanian" },
+  { value: "nb-NO", label: "Norwegian" },
+  { value: "nl-NL", label: "Dutch" },
+  { value: "pl-PL", label: "Polish" },
+  { value: "pt-BR", label: "Portuguese (Brazil)" },
+  { value: "pt-PT", label: "Portuguese (Portugal)" },
+  { value: "ru-RU", label: "Russian" },
+  { value: "sr-RS", label: "Serbian" },
+  { value: "sv-SE", label: "Swedish" },
+  { value: "th-TH", label: "Thai" },
+  { value: "tr-TR", label: "Turkish" },
+  { value: "uk-UA", label: "Ukrainian" },
+  { value: "ur-IN", label: "Urdu" },
+  { value: "vi-VN", label: "Vietnamese" },
+  { value: "cmn-CN", label: "Chinese (Mandarin)" },
+];
 
 const wordTypeLabels: Record<WordType, string> = {
   wanderword: "Wanderword",
@@ -168,7 +209,7 @@ function WordPreview({ word }: { word: Word | null }) {
 
             <div className="mt-8 flex flex-wrap gap-2">
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                {word.is_free ? "Free" : "Paid"}
+                {word.is_free ? (word.free_order ? `Free #${word.free_order}` : "Free") : "Paid"}
               </span>
               {word.audio_url ? (
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
@@ -176,6 +217,16 @@ function WordPreview({ word }: { word: Word | null }) {
                 </span>
               ) : null}
             </div>
+            {word.audio_url ? (
+              <audio
+                key={word.audio_url}
+                controls
+                preload="none"
+                src={word.audio_url}
+                className="mt-4 w-full"
+                aria-label={`Pronunciation of ${word.word}`}
+              />
+            ) : null}
           </div>
         </div>
       </div>
@@ -271,6 +322,36 @@ function WordEditor({
                 error={state.fieldErrors?.language?.[0]}
                 required
               />
+              <Field
+                label="Native spelling"
+                name="native_spelling"
+                defaultValue={word?.native_spelling ?? ""}
+                error={state.fieldErrors?.native_spelling?.[0]}
+                placeholder="e.g. тоска, 木漏れ日 (blank = as written)"
+              />
+              <div>
+                <label
+                  htmlFor="voice_locale"
+                  className="text-sm font-medium text-slate-700"
+                >
+                  Voice
+                </label>
+                <select
+                  id="voice_locale"
+                  name="voice_locale"
+                  defaultValue={word?.voice_locale ?? ""}
+                  className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-slate-950 outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
+                >
+                  {VOICE_CHOICES.map((choice) => (
+                    <option key={choice.value} value={choice.value}>
+                      {choice.label}
+                    </option>
+                  ))}
+                </select>
+                {state.fieldErrors?.voice_locale?.[0] ? (
+                  <p className="mt-1 text-xs text-rose-700">{state.fieldErrors.voice_locale[0]}</p>
+                ) : null}
+              </div>
               <div>
                 <label
                   htmlFor="type"
@@ -328,25 +409,45 @@ function WordEditor({
                 error={state.fieldErrors?.wisdom?.[0]}
                 rows={5}
               />
+              <PronunciationPanel word={word} />
               <Field
                 label="Audio URL"
                 name="audio_url"
                 type="url"
                 defaultValue={word?.audio_url ?? ""}
                 error={state.fieldErrors?.audio_url?.[0]}
-                placeholder="https://..."
+                placeholder="Filled in automatically when the word is saved"
               />
             </div>
 
-            <label className="mt-5 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-medium text-slate-700">
-              <input
-                type="checkbox"
-                name="is_free"
-                defaultChecked={word?.is_free ?? true}
-                className="size-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600"
+            <div className="mt-5 grid gap-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 sm:grid-cols-[1fr_10rem] sm:items-end">
+              <label className="flex items-center gap-3 text-sm font-medium text-slate-700 sm:pb-3">
+                <input
+                  type="checkbox"
+                  name="is_free"
+                  defaultChecked={word?.is_free ?? false}
+                  className="size-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600"
+                />
+                Free in the mobile app
+              </label>
+              <Field
+                label="Free order"
+                name="free_order"
+                type="number"
+                min={1}
+                max={999}
+                step={1}
+                inputMode="numeric"
+                defaultValue={word?.free_order ?? ""}
+                error={state.fieldErrors?.free_order?.[0]}
+                placeholder="1 = first"
               />
-              Free in the mobile app
-            </label>
+              <p className="text-xs text-slate-500 sm:col-span-2">
+                Free users see free words in this order (1 first). Changes reach
+                the app the next time it opens, no app update needed. Ignored
+                for paid words.
+              </p>
+            </div>
 
             {state.message ? (
               <p
@@ -393,6 +494,66 @@ function WordEditor({
           </footer>
         </form>
       </div>
+    </div>
+  );
+}
+
+/** Hear the word's recording and re-record it if it sounds off. */
+function PronunciationPanel({ word }: { word: Word | null }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [message, setMessage] = useState("");
+
+  if (!word) {
+    return (
+      <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+        A recording is made automatically when the word is saved.
+      </p>
+    );
+  }
+
+  function regenerate() {
+    if (!word) return;
+    const formData = new FormData();
+    formData.set("id", word.id);
+    startTransition(async () => {
+      const result = await regeneratePronunciationAction(formData);
+      setMessage(result.message);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-medium text-slate-700">Pronunciation</p>
+        <button
+          type="button"
+          onClick={regenerate}
+          disabled={isPending}
+          className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+        >
+          <Mic aria-hidden="true" size={14} />
+          {isPending ? "Recording…" : word.audio_url ? "Regenerate" : "Record"}
+        </button>
+      </div>
+      {word.audio_url ? (
+        <audio
+          key={word.audio_url}
+          controls
+          preload="none"
+          src={word.audio_url}
+          className="mt-3 w-full"
+          aria-label={`Pronunciation of ${word.word}`}
+        />
+      ) : (
+        <p className="mt-2 text-xs text-slate-500">No recording yet.</p>
+      )}
+      <p className="mt-2 text-xs text-slate-500">
+        Save the word first if you changed its spelling, language or voice. Regenerate re-records
+        what is saved.
+      </p>
+      {message ? <p className="mt-2 text-xs text-slate-700">{message}</p> : null}
     </div>
   );
 }
@@ -464,6 +625,7 @@ export function AdminShell({
   const [notice, setNotice] = useState("");
   const [pendingToggleId, setPendingToggleId] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [isRecording, startRecording] = useTransition();
 
   const stats = useMemo(() => {
     const published = words.filter((word) => word.published).length;
@@ -479,7 +641,7 @@ export function AdminShell({
   const filteredWords = useMemo(() => {
     const search = normalizeSearch(query);
 
-    return words.filter((word) => {
+    const matches = words.filter((word) => {
       const matchesSearch =
         !search ||
         [
@@ -504,6 +666,15 @@ export function AdminShell({
 
       return matchesSearch && matchesStatus && matchesType && matchesLevel;
     });
+
+    // The Free filter mirrors the app: free_order first, unordered words A–Z.
+    if (status !== "free") return matches;
+    return matches.sort(
+      (a, b) =>
+        (a.free_order ?? Number.MAX_SAFE_INTEGER) -
+          (b.free_order ?? Number.MAX_SAFE_INTEGER) ||
+        a.word.localeCompare(b.word),
+    );
   }, [level, query, status, type, words]);
 
   const visibleSelectedId = filteredWords.some((word) => word.id === selectedId)
@@ -526,6 +697,14 @@ export function AdminShell({
       if (result.ok) {
         router.refresh();
       }
+    });
+  }
+
+  function recordMissing() {
+    startRecording(async () => {
+      const result = await recordMissingPronunciationsAction();
+      setNotice(result.message);
+      router.refresh();
     });
   }
 
@@ -565,6 +744,15 @@ export function AdminShell({
             >
               <RefreshCcw aria-hidden="true" size={16} />
               Refresh
+            </button>
+            <button
+              type="button"
+              onClick={recordMissing}
+              disabled={isRecording}
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+            >
+              <Mic aria-hidden="true" size={16} />
+              {isRecording ? "Recording…" : "Record missing"}
             </button>
             <button
               type="button"
@@ -829,7 +1017,7 @@ export function AdminShell({
                         Level {word.level}
                       </span>
                       <span className="inline-flex h-7 items-center rounded-full bg-slate-100 px-2.5 text-xs font-semibold text-slate-700">
-                        {word.is_free ? "Free" : "Paid"}
+                        {word.is_free ? (word.free_order ? `Free #${word.free_order}` : "Free") : "Paid"}
                       </span>
                     </div>
                   </button>
