@@ -24,7 +24,7 @@ import {
 } from "@/lib/supabase-admin";
 import { guessVoice } from "@/lib/voice-guess";
 import type { ActionState } from "@/lib/types";
-import { formDataToWordInput } from "@/lib/word-schema";
+import { formDataToWordInput, toWordFormInput } from "@/lib/word-schema";
 
 const defaultState: ActionState = {
   ok: false,
@@ -36,7 +36,14 @@ function formatError(error: unknown): ActionState {
     return {
       ok: false,
       message: "Check the highlighted fields.",
-      fieldErrors: error.flatten().fieldErrors,
+      // Story issues arrive as ["story", "roots"]; the form names them story_roots.
+      fieldErrors: error.issues.reduce<Record<string, string[]>>((errors, issue) => {
+        const key = issue.path[0] === "story" && issue.path[1]
+          ? `story_${String(issue.path[1])}`
+          : String(issue.path[0] ?? "form");
+        (errors[key] ??= []).push(issue.message);
+        return errors;
+      }, {}),
     };
   }
 
@@ -90,7 +97,7 @@ export async function saveWordAction(
 
   try {
     await assertAdminSession();
-    const input = formDataToWordInput(formData);
+    const input = toWordFormInput(formDataToWordInput(formData));
     const previous = input.id ? await findWordById(input.id) : null;
     let word = await upsertWord(input);
 

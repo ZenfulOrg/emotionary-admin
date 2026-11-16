@@ -101,6 +101,8 @@ export async function upsertWord(input: WordFormInput) {
     audio_url: input.audio_url,
     native_spelling: input.native_spelling,
     voice_locale: input.voice_locale,
+    story: input.story,
+    story_status: input.story_status,
     updated_at: now,
   };
 

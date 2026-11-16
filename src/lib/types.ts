@@ -6,6 +6,16 @@ export const WORD_TYPES = [
 
 export type WordType = (typeof WORD_TYPES)[number];
 
+/** Back of the word card in the app: shown to Pro users once live. */
+export type WordStory = {
+  background: string;
+  roots: { part: string; meaning: string }[];
+  myth: string | null;
+  fun_fact: string | null;
+};
+
+export type StoryStatus = "draft" | "live";
+
 export type Word = {
   id: string;
   slug: string;
@@ -23,6 +33,8 @@ export type Word = {
   audio_url: string | null;
   native_spelling: string | null;
   voice_locale: string | null;
+  story: WordStory | null;
+  story_status: StoryStatus;
   created_at: string;
   updated_at: string;
 };
@@ -43,6 +55,8 @@ export type WordFormInput = {
   audio_url: string | null;
   native_spelling: string | null;
   voice_locale: string | null;
+  story: WordStory | null;
+  story_status: StoryStatus;
 };
 
 export type ActionState = {

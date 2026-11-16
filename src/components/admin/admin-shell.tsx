@@ -34,6 +34,7 @@ import {
 } from "@/app/actions";
 import type { ActionState, Word, WordType } from "@/lib/types";
 import { WORD_TYPES } from "@/lib/types";
+import { formatRoots } from "@/lib/word-schema";
 import { AdminNavigation } from "@/components/admin/admin-navigation";
 
 type AdminShellProps = {
@@ -419,6 +420,54 @@ function WordEditor({
                 placeholder="Filled in automatically when the word is saved"
               />
             </div>
+
+            <fieldset className="mt-5 space-y-4 rounded-lg border border-slate-200 px-3 py-3">
+              <legend className="px-1 text-sm font-semibold text-slate-800">
+                Story · back of the card (Pro)
+              </legend>
+              <TextArea
+                label="Background and cultural context"
+                name="story_background"
+                defaultValue={word?.story?.background ?? ""}
+                error={state.fieldErrors?.story_background?.[0]}
+                rows={5}
+              />
+              <TextArea
+                label="Roots (one per line, part: meaning)"
+                name="story_roots"
+                defaultValue={formatRoots(word?.story?.roots)}
+                error={state.fieldErrors?.story_roots?.[0]}
+                rows={3}
+                placeholder={"ko: tree\nmore: leaking through\nbi: light"}
+              />
+              <TextArea
+                label="Story, myth or tradition (optional)"
+                name="story_myth"
+                defaultValue={word?.story?.myth ?? ""}
+                error={state.fieldErrors?.story_myth?.[0]}
+                rows={4}
+              />
+              <TextArea
+                label="Fun fact (optional)"
+                name="story_fun_fact"
+                defaultValue={word?.story?.fun_fact ?? ""}
+                error={state.fieldErrors?.story_fun_fact?.[0]}
+                rows={2}
+              />
+              <label className="flex items-center gap-3 text-sm font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  name="story_live"
+                  defaultChecked={word?.story_status === "live"}
+                  className="size-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600"
+                />
+                Show this story in the app
+              </label>
+              <p className="text-xs text-slate-500">
+                Unchecked stories stay a draft and are hidden in the app. Changes
+                reach the app the next time it opens, no app update needed.
+              </p>
+            </fieldset>
 
             <div className="mt-5 grid gap-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 sm:grid-cols-[1fr_10rem] sm:items-end">
               <label className="flex items-center gap-3 text-sm font-medium text-slate-700 sm:pb-3">
