@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { BookOpen, Mail } from "lucide-react";
+import { Bell, BookOpen, Mail } from "lucide-react";
 
 export function AdminNavigation({
   current,
 }: {
-  current: "words" | "waitlist";
+  current: "words" | "waitlist" | "notifications";
 }) {
   return (
     <nav
@@ -19,6 +19,12 @@ export function AdminNavigation({
             href: "/waitlist",
             label: "Book waitlist",
             Icon: Mail,
+          },
+          {
+            id: "notifications",
+            href: "/notifications",
+            label: "Notifications",
+            Icon: Bell,
           },
         ].map(({ id, href, label, Icon }) => (
           <Link
