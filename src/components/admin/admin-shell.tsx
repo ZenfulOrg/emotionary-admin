@@ -801,7 +801,7 @@ export function AdminShell({
               className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
             >
               <Mic aria-hidden="true" size={16} />
-              {isRecording ? "Recording…" : "Record missing"}
+              {isRecording ? "Working…" : "Record & tighten audio"}
             </button>
             <button
               type="button"
