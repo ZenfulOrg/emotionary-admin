@@ -1,5 +1,6 @@
 import "server-only";
 
+import { trimLeadingSilence } from "@/lib/mp3-trim";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import type { Word } from "@/lib/types";
 
@@ -130,7 +131,9 @@ async function synthesize(text: string, locale: string) {
   }
   const { audioContent } = (await response.json()) as { audioContent?: string };
   if (!audioContent) throw new Error("Google returned no audio.");
-  return { audio: Buffer.from(audioContent, "base64"), voice: voice.name };
+  // Google's voices pause before speaking; cut that so playback starts on tap.
+  const audio = Buffer.from(trimLeadingSilence(Buffer.from(audioContent, "base64")));
+  return { audio, voice: voice.name };
 }
 
 /** True when audio_url points at a recording this panel generated. */
@@ -151,7 +154,15 @@ export async function generatePronunciation(
   }
   const { text, locale } = speechFor(word);
   const { audio, voice } = await synthesize(text, locale);
+  const url = await saveRecording(word, audio);
+  return { skipped: false as const, url, voice };
+}
 
+/** Marks a recording whose leading silence has been cut. */
+const TRIMMED_MARK = "trim=1";
+
+/** Uploads the MP3 and points the word at it. */
+async function saveRecording(word: Pick<Word, "id" | "slug">, audio: Buffer) {
   const supabase = getSupabaseAdmin();
   const path = `${word.slug}.mp3`;
   const { error: uploadError } = await supabase.storage
@@ -161,11 +172,24 @@ export async function generatePronunciation(
 
   // Version the URL so the app (and its cache) fetch the new file.
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  const url = `${data.publicUrl}?v=${Date.now()}`;
+  const url = `${data.publicUrl}?v=${Date.now()}&${TRIMMED_MARK}`;
   const { error: updateError } = await supabase.from("words").update({ audio_url: url }).eq("id", word.id);
   if (updateError) throw new Error(updateError.message);
+  return url;
+}
 
-  return { skipped: false as const, url, voice };
+/** A generated recording made before leading silence was trimmed. */
+export function needsTrim(url: string | null) {
+  return isGeneratedAudio(url) && !url!.includes(TRIMMED_MARK);
+}
+
+/** Cuts the leading silence from an existing recording (no new synthesis). */
+export async function trimRecording(word: Pick<Word, "id" | "slug" | "audio_url">) {
+  if (!word.audio_url || !needsTrim(word.audio_url)) return;
+  const response = await fetch(word.audio_url, { cache: "no-store" });
+  if (!response.ok) throw new Error(`Could not download the recording (${response.status}).`);
+  const original = new Uint8Array(await response.arrayBuffer());
+  await saveRecording(word, Buffer.from(trimLeadingSilence(original)));
 }
 
 /** Whether a save changed anything the recording depends on. */

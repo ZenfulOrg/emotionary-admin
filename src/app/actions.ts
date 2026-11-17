@@ -13,7 +13,9 @@ import {
 import {
   generatePronunciation,
   needsNewRecording,
+  needsTrim,
   pronunciationEnabled,
+  trimRecording,
 } from "@/lib/pronunciation";
 import {
   findWordById,
@@ -185,14 +187,16 @@ export async function regeneratePronunciationAction(
   }
 }
 
-/** Records every word that has no audio yet. Safe to run repeatedly. */
+/**
+ * Records every word that has no audio yet, and cuts the pause before the
+ * word from older recordings. Safe to run repeatedly.
+ */
 export async function recordMissingPronunciationsAction(): Promise<ActionState> {
   try {
     await assertAdminSession();
-    if (!pronunciationEnabled()) {
-      return { ok: false, message: "Recordings are off: GOOGLE_TTS_API_KEY is not set." };
-    }
-    const missing = (await listWords()).filter((word) => !word.audio_url);
+    const words = await listWords();
+    const missing = pronunciationEnabled() ? words.filter((word) => !word.audio_url) : [];
+    const untrimmed = words.filter((word) => needsTrim(word.audio_url));
     const failed: string[] = [];
     for (const word of missing) {
       try {
@@ -201,17 +205,30 @@ export async function recordMissingPronunciationsAction(): Promise<ActionState> 
         failed.push(word.word);
       }
     }
+    // A few at a time: each is a small download and upload.
+    for (let i = 0; i < untrimmed.length; i += 8) {
+      await Promise.all(
+        untrimmed.slice(i, i + 8).map(async (word) => {
+          try {
+            await trimRecording(word);
+          } catch {
+            failed.push(word.word);
+          }
+        }),
+      );
+    }
 
     revalidatePath("/");
 
-    const done = missing.length - failed.length;
+    const parts: string[] = [];
+    if (missing.length) parts.push(`Recorded ${missing.length} missing word${missing.length === 1 ? "" : "s"}.`);
+    if (untrimmed.length) parts.push(`Tightened ${untrimmed.length} recording${untrimmed.length === 1 ? "" : "s"}.`);
+    if (!pronunciationEnabled()) parts.push("New recordings are off: GOOGLE_TTS_API_KEY is not set.");
     return {
       ok: failed.length === 0,
       message:
-        missing.length === 0
-          ? "Every word already has a recording."
-          : `Recorded ${done} of ${missing.length} words.` +
-            (failed.length ? ` Failed: ${failed.join(", ")}.` : ""),
+        (parts.length ? parts.join(" ") : "Every word already has a tight recording.") +
+        (failed.length ? ` Failed: ${failed.join(", ")}.` : ""),
     };
   } catch (error) {
     return formatError(error);
