@@ -52,6 +52,21 @@ const LANGUAGE_LOCALES: Record<string, string> = {
   "sanskrit (modern coinage)": "hi-IN",
   russian: "ru-RU",
   "old norse": "is-IS",
+  icelandic: "is-IS",
+  hindi: "hi-IN",
+  urdu: "ur-IN",
+  polish: "pl-PL",
+  "mexican spanish": "es-US",
+  "japanese / chinese": "ja-JP",
+  chinese: "cmn-CN",
+  mandarin: "cmn-CN",
+  korean: "ko-KR",
+  thai: "th-TH",
+  vietnamese: "vi-VN",
+  ukrainian: "uk-UA",
+  // No voice for these yet; the nearest accent reads them.
+  yiddish: "de-DE",
+  hawaiian: "en-US",
 };
 
 export function defaultVoiceLocale(language: string) {

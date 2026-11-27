@@ -1,0 +1,3 @@
+{
+  "crons": [{ "path": "/api/cron/record-pronunciations", "schedule": "17 * * * *" }]
+}
