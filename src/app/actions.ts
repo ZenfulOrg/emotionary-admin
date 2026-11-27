@@ -13,18 +13,16 @@ import {
 import {
   generatePronunciation,
   needsNewRecording,
-  needsTrim,
   pronunciationEnabled,
-  trimRecording,
 } from "@/lib/pronunciation";
 import {
   findWordById,
-  listWords,
   setWordPublished,
   setWordVoice,
   upsertWord,
 } from "@/lib/supabase-admin";
 import { guessVoice } from "@/lib/voice-guess";
+import { recordMissingPronunciations } from "@/lib/record-missing";
 import type { ActionState } from "@/lib/types";
 import { formDataToWordInput, toWordFormInput } from "@/lib/word-schema";
 
@@ -194,36 +192,14 @@ export async function regeneratePronunciationAction(
 export async function recordMissingPronunciationsAction(): Promise<ActionState> {
   try {
     await assertAdminSession();
-    const words = await listWords();
-    const missing = pronunciationEnabled() ? words.filter((word) => !word.audio_url) : [];
-    const untrimmed = words.filter((word) => needsTrim(word.audio_url));
-    const failed: string[] = [];
-    for (const word of missing) {
-      try {
-        await generatePronunciation(word);
-      } catch {
-        failed.push(word.word);
-      }
-    }
-    // A few at a time: each is a small download and upload.
-    for (let i = 0; i < untrimmed.length; i += 8) {
-      await Promise.all(
-        untrimmed.slice(i, i + 8).map(async (word) => {
-          try {
-            await trimRecording(word);
-          } catch {
-            failed.push(word.word);
-          }
-        }),
-      );
-    }
+    const { recorded, tightened, failed, enabled } = await recordMissingPronunciations();
 
     revalidatePath("/");
 
     const parts: string[] = [];
-    if (missing.length) parts.push(`Recorded ${missing.length} missing word${missing.length === 1 ? "" : "s"}.`);
-    if (untrimmed.length) parts.push(`Tightened ${untrimmed.length} recording${untrimmed.length === 1 ? "" : "s"}.`);
-    if (!pronunciationEnabled()) parts.push("New recordings are off: GOOGLE_TTS_API_KEY is not set.");
+    if (recorded.length) parts.push(`Recorded ${recorded.length} missing word${recorded.length === 1 ? "" : "s"}.`);
+    if (tightened) parts.push(`Tightened ${tightened} recording${tightened === 1 ? "" : "s"}.`);
+    if (!enabled) parts.push("New recordings are off: GOOGLE_TTS_API_KEY is not set.");
     return {
       ok: failed.length === 0,
       message:
